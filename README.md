@@ -12,5 +12,5 @@ python graph/computing_similarity_sents-backup.py
 
 train and test:
 
-python model/hgsum-newrouge-v11.py
+python model/mfg_train_test.py
 
