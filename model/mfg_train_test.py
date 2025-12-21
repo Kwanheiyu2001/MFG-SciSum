@@ -242,7 +242,7 @@ class HGSummarizer(pl.LightningModule):
     """def compute_rouge_batch(
             self,
             input_ids,
-            gold_str,  # List[str]，参考摘要
+            gold_str,  
             heterograph_source,
             words_positions_source,
             sents_positions_source,
@@ -257,7 +257,7 @@ class HGSummarizer(pl.LightningModule):
             place
     ):
         device = input_ids.device
-        # 1) 构造 attention_mask、global_attention_mask 跟之前一样
+      
         global_attention_mask = torch.zeros_like(input_ids).to(device)
         global_attention_mask[:, 0] = 1
         global_attention_mask[input_ids == self.docsep_token_id] = 1
@@ -266,7 +266,7 @@ class HGSummarizer(pl.LightningModule):
         attention_mask = torch.ones_like(input_ids).to(device)
         attention_mask[input_ids == self.pad_token_id] = 0
 
-        # 2) 批量生成
+        
         generated_ids = self.model.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -290,12 +290,12 @@ class HGSummarizer(pl.LightningModule):
             place=place
         )
 
-        # 3) 解码成字符串列表
+      
         generated_strs = self.tokenizer.batch_decode(
             generated_ids, skip_special_tokens=True
         )
 
-        # 4) 修改为 article_name-place 命名文本文件
+     
         output_dir = os.path.join(
             self.args.model_path,
             "generated_txt_%d_%s_beam=%d_%d_%d"
@@ -308,23 +308,23 @@ class HGSummarizer(pl.LightningModule):
             ),
         )
 
-        # 确保文件夹存在
+      
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
         for i, pred in enumerate(generated_strs):
-            file_name = f"{article_name}-{place}.txt"  # 使用 article_name 和 place 作为文件名
+            file_name = f"{article_name}-{place}.txt" 
             with open(os.path.join(output_dir, file_name), "w", encoding="utf-8") as of:
                 of.write(pred.replace("<n>", "\n"))
 
-        # 5) 用 HuggingFace 的 RougeScorer 逐条计算
+       
         result_batch = []
         batch_size = input_ids.size(0)
         for i in range(batch_size):
             hyp = generated_strs[i]
             ref = gold_str[i]  # gold_str 应该是 List[str]
             scores = self.scorer.score(hyp, ref)
-            # scores 是一个 dict，比如 scores["rouge1"].precision, recall, fmeasure，也有 rouge2、rougeL、rougeLsum
+            
             r1 = scores["rouge1"]
             r2 = scores["rouge2"]
             rl = scores["rougeL"]
@@ -364,7 +364,7 @@ class HGSummarizer(pl.LightningModule):
             place
     ):
         device = input_ids.device
-        # 1) 构造 attention_mask、global_attention_mask 跟训练时一致
+       
         global_attention_mask = torch.zeros_like(input_ids).to(device)
         global_attention_mask[:, 0] = 1
         global_attention_mask[input_ids == self.docsep_token_id] = 1
@@ -373,7 +373,7 @@ class HGSummarizer(pl.LightningModule):
         attention_mask = torch.ones_like(input_ids).to(device)
         attention_mask[input_ids == self.pad_token_id] = 0
 
-        # 2) 批量生成
+     
         generated_ids = self.model.generate(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -397,7 +397,7 @@ class HGSummarizer(pl.LightningModule):
             place=place
         )
 
-        # 3) 解码成字符串列表
+        
         generated_strs = self.tokenizer.batch_decode(
             generated_ids, skip_special_tokens=True
         )
@@ -416,7 +416,7 @@ class HGSummarizer(pl.LightningModule):
                 with open(os.path.join(output_dir, file_name), 'w', encoding='utf-8') as of:
                     of.write(pred.replace('<n>', '\n'))
 
-        # 5) 用 HuggingFace 的 RougeScorer 逐条计算
+      
         result_batch = []
         batch_size = input_ids.size(0)
         for i in range(batch_size):
@@ -459,14 +459,14 @@ class HGSummarizer(pl.LightningModule):
             return {"vloss": loss}
 
     def compute_rouge_all(self, outputs, output_file=None):
-        # outputs 是 validation 或 test 阶段返回的 outputs 列表，每个 item["rouge_result"] 都是一个 [(id, r1_r,...,rlsum_f), ...] 的列表
+       
         rouge_result_all = [r for batch_out in outputs for r in batch_out["rouge_result"]]
 
-        # 取出所有行的 id 和对应的 12 个指标值
+        
         ids = [row[0] for row in rouge_result_all]  # ['article1-Intro', 'article1-Method', ...]
         metrics_data = [row[1:] for row in rouge_result_all]  # [[r1_r, r1_p, ..., rlsum_f], [...], ...]
 
-        # 列名（只包含 12 个 Rouge 指标，不含 id）
+        
         metric_cols = [
             "rouge-1-r", "rouge-1-p", "rouge-1-f",
             "rouge-2-r", "rouge-2-p", "rouge-2-f",
@@ -474,29 +474,29 @@ class HGSummarizer(pl.LightningModule):
             "rouge-Lsum-r", "rouge-Lsum-p", "rouge-Lsum-f"
         ]
 
-        # 用 ids 作为索引，把 metrics_data 填到 DataFrame 中
+       
         rouge_results = pd.DataFrame(metrics_data, columns=metric_cols, index=ids)
 
-        # 计算每一列的平均值
-        avg_series = rouge_results.mean(axis=0)  # 结果是一个 length=12 的 series，index=metric_cols
+        
+        avg_series = rouge_results.mean(axis=0)  
 
-        # 插入一行，索引名为 "avg_score"，对应每一列的平均值
+        
         rouge_results.loc["avg_score"] = avg_series
 
-        # 如果指定要保存到文件，就写 CSV
+       
         if output_file:
             csv_name = (
                     self.args.model_path
                     + output_file
                     + "-%d.csv" % (torch.distributed.get_rank() if self.use_ddp else 0)
             )
-            # 默认索引（行标签）会被写到第一列，列标题就是 metric_cols
+          
             rouge_results.to_csv(csv_name)
 
-        # 下面这几行只是为了打印和返回 avgf、metrics，与 CSV 格式无关
+      
         avg_list = avg_series.tolist()  # 把 pandas Series 转成 Python 列表：[avg_r1_r, avg_r1_p, ..., avg_rlsum_f]
 
-        # avgf 计算方法保持不变：取 rouge-1-f, rouge-2-f, rouge-Lsum-f 三者的平均
+       
         avgf = (avg_list[2] + avg_list[5] + avg_list[11]) / 3
         metrics = avg_list
 
@@ -518,7 +518,7 @@ class HGSummarizer(pl.LightningModule):
             % (metrics[9], metrics[10], metrics[11])
         )
 
-        # 返回的 names 也只需包含列标题，跟原来第一行保持一致
+       
         names = metric_cols
         return names, metrics, avgf
 
@@ -536,10 +536,10 @@ class HGSummarizer(pl.LightningModule):
             self.logger.log_metrics(logs, step=self.global_step)
             self.log(
                 "avgf", avgf,
-                on_step=False,  # 不在 step 级别
-                on_epoch=True,  # 在 epoch 末尾
-                prog_bar=True,  # 显示到进度条
-                logger=True  # 发给 logger
+                on_step=False,  
+                on_epoch=True,  
+                prog_bar=True,  
+                logger=True  
             )
 
             return {
@@ -605,12 +605,12 @@ def train(args):
         mode="min",
         save_on_train_epoch_end=False,
     )
-    # early stopping，patience 从参数读取
+   
     early_stopping = EarlyStopping(
-    monitor="vloss",       # 监控 validation loss
+    monitor="vloss",       
     patience=args.early_stop_patience,
-    mode="min",            # 希望最小化这个指标
-    verbose=True,          # 打印一下何时触发 early stop
+    mode="min",          
+    verbose=True,        
     )"""
 
     checkpoint_callback = ModelCheckpoint(
@@ -622,12 +622,12 @@ def train(args):
         save_on_train_epoch_end=False,
         save_last=True,
     )
-    # early stopping，patience 从参数读取
+  
     early_stopping = EarlyStopping(
-        monitor="avgf",  # 监控 validation loss
+        monitor="avgf",  
         patience=args.early_stop_patience,
-        mode="max",  # 希望最小化这个指标
-        verbose=True,  # 打印一下何时触发 early stop
+        mode="max",  
+        verbose=True,  
     )
     #early_stopping = EarlyStopping(monitor='vloss', patience=3, mode='min')
 
@@ -801,7 +801,7 @@ if __name__ == "__main__":
     "--early_stop_patience",
     type=int,
     default=5,
-    help="连续多少个 epoch 验证 loss 不下降就 early stop")
+    help="early stop")
 
 
     args = parser.parse_args()
