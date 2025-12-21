@@ -2,7 +2,7 @@ Paper Link:https://www.sciencedirect.com/science/article/pii/S0020025525009879
 
 1.Data Zoning
 
-pyrhon zoning/data_zoning.py
+python zoning/data_zoning.py
 
 2.Graph Data Creation
 
